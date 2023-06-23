@@ -1,23 +1,22 @@
 package line
 
 import (
-	"log"
-	"strings"
-	"time"
+	"fmt"
+
+	"github.com/fesnasser/file-processor/database"
+	"github.com/fesnasser/file-processor/model"
 )
 
 type Byte400Handler struct{}
 
-func (h Byte400Handler) Handle(line string) {
-	validate(line)
-}
+func (h Byte400Handler) Handle(line []byte) {
+	db := database.GetCon()
 
-func validate(line string) {
-	count := strings.Count(line, "0")
+	newLine := model.Line{Valid: len(line) == 400}
 
-	if count < 400 {
-		log.Fatalf("Invalid line: %s", line)
+	err := db.Create(&newLine).Error
+
+	if err != nil {
+		fmt.Println("Erro ao salvar a linha na base", err)
 	}
-
-	time.Sleep(1 * time.Second)
 }

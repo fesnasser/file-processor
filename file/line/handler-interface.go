@@ -1,5 +1,5 @@
 package line
 
 type Handler interface {
-	Handle(line string)
+	Handle(line []byte)
 }

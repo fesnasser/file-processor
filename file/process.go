@@ -4,21 +4,28 @@ import (
 	"bufio"
 	"log"
 	"os"
+	"sync"
 
 	"github.com/fesnasser/file-processor/file/line"
 )
 
-const workersQuantity = 20000
+// Não pode ser igual ou maior que o máximo de conexões do banco
+const workerPoolSize = 50
 
 func Process(filePath string, lineHandler line.Handler) {
-	channel := make(chan string)
+	var wg sync.WaitGroup
 
-	createWorkers(channel, lineHandler)
+	channel := make(chan []byte, workerPoolSize)
+
+	createWorkers(channel, lineHandler, &wg)
 
 	readFile(filePath, channel)
+
+	close(channel)
+	wg.Wait()
 }
 
-func readFile(filePath string, channel chan string) {
+func readFile(filePath string, channel chan []byte) {
 	readFile, err := os.Open(filePath)
 
 	if err != nil {
@@ -30,7 +37,7 @@ func readFile(filePath string, channel chan string) {
 	fileScanner := bufio.NewScanner(readFile)
 
 	for fileScanner.Scan() {
-		channel <- fileScanner.Text()
+		channel <- fileScanner.Bytes()
 	}
 
 	if err := fileScanner.Err(); err != nil {
@@ -38,14 +45,17 @@ func readFile(filePath string, channel chan string) {
 	}
 }
 
-func createWorkers(channel chan string, lineHandler line.Handler) {
-	for i := 0; i < workersQuantity; i++ {
-		go readFromChannel(channel, lineHandler)
+func createWorkers(channel chan []byte, lineHandler line.Handler, wg *sync.WaitGroup) {
+	for i := 0; i < workerPoolSize; i++ {
+		wg.Add(1)
+
+		go readFromChannel(channel, lineHandler, wg)
 	}
 }
 
-func readFromChannel(data chan string, lineHandler line.Handler) {
-	for line := range data {
+func readFromChannel(channel chan []byte, lineHandler line.Handler, wg *sync.WaitGroup) {
+	for line := range channel {
 		lineHandler.Handle(line)
 	}
+	wg.Done()
 }
